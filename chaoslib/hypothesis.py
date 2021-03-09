@@ -334,8 +334,18 @@ def _(tolerance: dict, value: Any, configuration: Configuration = None,  #noqa: 
             else:
                 result = values == expect
 
+        if "expect" in tolerance and result is False:
+            expect_one_of = tolerance.get("expect_one_of")
+            if expect_one_of is not None:
+                result = values == expect_one_of
+
         if result is False:
-            if "expect" in tolerance:
+            if "expect" in tolerance and "expect_one_of" in tolerance:
+                logger.debug(
+                    "jsonpath found '{}' but expected '{}' or '{}'".format(
+                        str(values), str(tolerance["expect"]),
+                        str(tolerance["expect_one_of"])))
+            elif "expect" in tolerance:
                 logger.debug(
                     "jsonpath found '{}' but expected '{}'".format(
                         str(values), str(tolerance["expect"])))

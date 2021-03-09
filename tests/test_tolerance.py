@@ -139,6 +139,18 @@ def test_tolerance_jsonpath_must_match_expected_value():
         }
     ) is True
 
+    t = {
+        "type": "jsonpath",
+        "path": "$.foo[?(@.baz)].baz",
+        "expect": [["hello", "bonjour"]],
+        "expect_one_of": [["hello", "joe"]]
+    }
+    ensure_hypothesis_tolerance_is_valid(t)
+    assert within_tolerance(
+        t, value={
+            'foo': {"baz": ["hello", "joe"]}
+        }
+    ) is True
 
     t = {
         "type": "jsonpath",
@@ -149,6 +161,19 @@ def test_tolerance_jsonpath_must_match_expected_value():
     assert within_tolerance(
         t, value={
             'foo': {"baz": [["hello"], ["bonjour"]]}
+        }
+    ) is True
+
+    t = {
+        "type": "jsonpath",
+        "path": "$.foo[?(@.baz)].baz",
+        "expect": [[["hello"], ["bonjour"]]],
+        "expect_one_of": [[["hello"], ["joe"]]]
+    }
+    ensure_hypothesis_tolerance_is_valid(t)
+    assert within_tolerance(
+        t, value={
+            'foo': {"baz": [["hello"], ["joe"]]}
         }
     ) is True
 
@@ -201,7 +226,7 @@ def test_tolerance_jsonpath_must_match_expected_values():
     assert within_tolerance(
         t, value={
             'foo': [{"baz": "hello"}, {"baz": "bonjour"}]
-        }, 
+        },
     ) is True
 
 
