@@ -9,9 +9,8 @@ from chaoslib.secret import load_secrets, load_secrets_from_vault, \
 from fixtures import config
 from unittest.mock import ANY, MagicMock, patch, mock_open
 
-
+@patch.dict(os.environ, {"KUBE_API_URL": "http://1.2.3.4"})
 def test_should_load_environment():
-    os.environ["KUBE_API_URL"] = "http://1.2.3.4"
     secrets = load_secrets({
         "kubernetes": {
             "api_server_url": {
@@ -31,7 +30,7 @@ def test_should_load_inline():
     }, config.EmptyConfig)
     assert secrets["kubernetes"]["api_server_url"] == "http://1.2.3.4"
 
-
+@patch.dict(os.environ, {"KUBE_API_URL": "http://1.2.3.4"})
 def test_should_merge_properly():
     secrets = load_secrets({
         "kubernetes": {
@@ -252,9 +251,8 @@ def test_read_secrets_from_vault_with_kv_version_2(hvac):
     secrets = load_secrets_from_vault(secrets_info, config)
     assert secrets["k8s"]["a-secret"] == "bar"
 
-
+@patch.dict(os.environ, {"KUBE_API_URL": "http://1.2.3.4"})
 def test_override_load_environmen_with_var():
-    os.environ["KUBE_API_URL"] = "http://1.2.3.4"
     secrets = load_secrets({
         "kubernetes": {
             "api_server_url": {
@@ -283,3 +281,81 @@ def test_should_override_load_inline_with_var():
         }
     })
     assert secrets["kubernetes"]["api_server_url"] == "http://elsewhere"
+
+
+@patch('chaoslib.secret.hvac')
+def test_vault_add_subkeys(hvac):
+    config = {
+        'vault_addr': 'http://someaddr.com',
+        'vault_token': 'not_awesome_token',
+        'vault_kv_version': '2'
+    }
+
+    vault_secret_payload = {
+        "data": {
+            "data": {
+                "foo": "bar",
+                "baz": "hello"
+            },
+            "metadata": {
+                "auth": None,
+                "lease_duration": 2764800,
+                "lease_id": "",
+                "renewable": False
+            }
+        }
+    }
+
+    fake_client = MagicMock()
+    hvac.Client.return_value = fake_client
+    fake_client.secrets.kv.v2.read_secret_version.return_value = vault_secret_payload
+
+    secrets = load_secrets({
+        "myapp": {
+            "token": {
+                "type": "vault",
+                "path": "secrets/something"
+            }
+        }
+    }, config)
+    assert secrets["myapp"]["token"]["foo"] == "bar"
+    assert secrets["myapp"]["token"]["baz"] == "hello"
+
+@patch('chaoslib.secret.hvac')
+def test_vault_replace_entire_declare(hvac):
+    config = {
+        'vault_addr': 'http://someaddr.com',
+        'vault_token': 'not_awesome_token',
+        'vault_kv_version': '2'
+    }
+
+    vault_secret_payload = {
+        "data": {
+            "data": {
+                "foo": "bar",
+                "baz": "hello"
+            },
+            "metadata": {
+                "auth": None,
+                "lease_duration": 2764800,
+                "lease_id": "",
+                "renewable": False
+            }
+        }
+    }
+
+    fake_client = MagicMock()
+    hvac.Client.return_value = fake_client
+    fake_client.secrets.kv.v2.read_secret_version.return_value = vault_secret_payload
+
+    secrets = load_secrets({
+        "myapp": {
+            "token": {
+                "type": "vault",
+                "path": "secrets/something",
+                "key": "foo"
+            }
+        }
+    }, config)
+    assert secrets["myapp"]["token"] == "bar"
+
