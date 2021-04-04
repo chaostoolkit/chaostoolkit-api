@@ -52,7 +52,7 @@ class RunEventHandler:
         logger.debug("Experiment execution caught a system signal")
 
     def start_continous_hypothesis(self, frequency: int) -> None:
-        logger.debug("Steady state will run continously now")
+        logger.debug("Steady state will run continuously now")
 
     def continous_hypothesis_iteration(self, iteration_index: int,
                                        state: Any) -> None:
@@ -62,7 +62,7 @@ class RunEventHandler:
                                        journal: Journal,
                                        exception: Exception = None) \
                                            -> None:
-        logger.debug("Continous steady state is now complete")
+        logger.debug("Continuous steady state is now complete")
 
     def start_hypothesis_before(self, experiment: Experiment) -> None:
         logger.debug("Steady state hypothesis is now running before method")
@@ -521,7 +521,7 @@ def run_hypothesis_during_method(hypo_pool: ThreadPoolExecutor,
                                  event_registry: EventHandlerRegistry,
                                  dry: bool = False) -> Future:
     """
-    Run the hypothesis continously in a background thead and report the
+    Run the hypothesis continuously in a background thead and report the
     status in the journal when it raised an exception.
     """
     def completed(f: Future):
@@ -535,7 +535,7 @@ def run_hypothesis_during_method(hypo_pool: ThreadPoolExecutor,
             elif isinstance(exc, Exception):
                 journal["status"] = "aborted"
                 logger.fatal(str(exc))
-        logger.info("Continous steady state hypothesis terminated")
+        logger.info("Continuous steady state hypothesis terminated")
 
     f = hypo_pool.submit(
         run_hypothesis_continuously, continous_hypo_event,
@@ -691,7 +691,7 @@ def run_hypothesis_continuously(event: threading.Event, schedule: Schedule,
 
     event_registry.start_continous_hypothesis(frequency)
     logger.info(
-        "Executing the steady-state hypothesis continously "
+        "Executing the steady-state hypothesis continuously "
         "every {} seconds".format(frequency))
 
     failed_iteration = 0
@@ -712,7 +712,7 @@ def run_hypothesis_continuously(event: threading.Event, schedule: Schedule,
             failed_ratio = (failed_iteration * 100) / iteration
             p = state["probes"][-1]
             logger.warning(
-                "Continous steady state probe '{p}' is not in the given "
+                "Continuous steady state probe '{p}' is not in the given "
                 "tolerance".format(p=p["activity"]["name"]))
 
             if schedule.fail_fast:
