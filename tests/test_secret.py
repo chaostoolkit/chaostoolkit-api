@@ -10,8 +10,8 @@ from fixtures import config
 from unittest.mock import ANY, MagicMock, patch, mock_open
 
 
+@patch.dict(os.environ, {"KUBE_API_URL": "http://1.2.3.4"})
 def test_should_load_environment():
-    os.environ["KUBE_API_URL"] = "http://1.2.3.4"
     secrets = load_secrets({
         "kubernetes": {
             "api_server_url": {
@@ -23,6 +23,26 @@ def test_should_load_environment():
     assert secrets["kubernetes"]["api_server_url"] == "http://1.2.3.4"
 
 
+@patch.dict(os.environ, {"KUBE_API_URL": "http://1.2.3.4"})
+def test_should_load_nested_environment():
+    secrets = load_secrets({
+        "kubernetes": {
+            "env1": {
+                "username": "jane",
+                "address": {"host": "whatever", "port": 8090},
+                "api_server_url": {
+                    "type": "env",
+                    "key": "KUBE_API_URL"
+                }
+            }
+        }
+    }, config.EmptyConfig)
+    assert secrets["kubernetes"]["env1"]["username"] == "jane"
+    assert secrets["kubernetes"]["env1"]["address"]["host"] == "whatever"
+    assert secrets["kubernetes"]["env1"]["address"]["port"] == 8090
+    assert secrets["kubernetes"]["env1"]["api_server_url"] == "http://1.2.3.4"
+
+
 def test_should_load_inline():
     secrets = load_secrets({
         "kubernetes": {
@@ -32,6 +52,7 @@ def test_should_load_inline():
     assert secrets["kubernetes"]["api_server_url"] == "http://1.2.3.4"
 
 
+@patch.dict(os.environ, {"KUBE_API_URL": "http://1.2.3.4"})
 def test_should_merge_properly():
     secrets = load_secrets({
         "kubernetes": {
@@ -176,7 +197,7 @@ def test_read_secrets_from_vault_with_kv_version_1(hvac):
     hvac.Client.return_value = fake_client
     fake_client.secrets.kv.v1.read_secret.return_value = vault_secret_payload
 
-    secrets = load_secrets_from_vault(secrets_info, config)
+    secrets = load_secrets(secrets_info, config)
     assert secrets["k8s"]["a-secret"] == {
         "my-important-secret": "bar",
         "my-less-important-secret": "baz"
@@ -192,7 +213,7 @@ def test_read_secrets_from_vault_with_kv_version_1(hvac):
         }
     }
 
-    secrets = load_secrets_from_vault(secrets_info, config)
+    secrets = load_secrets(secrets_info, config)
     assert secrets["k8s"]["a-secret"] == "bar"
 
 
@@ -233,7 +254,7 @@ def test_read_secrets_from_vault_with_kv_version_2(hvac):
     hvac.Client.return_value = fake_client
     fake_client.secrets.kv.v2.read_secret_version.return_value = vault_secret_payload
 
-    secrets = load_secrets_from_vault(secrets_info, config)
+    secrets = load_secrets(secrets_info, config)
     assert secrets["k8s"]["a-secret"] == {
         "my-important-secret": "bar",
         "my-less-important-secret": "baz"
@@ -249,12 +270,12 @@ def test_read_secrets_from_vault_with_kv_version_2(hvac):
         }
     }
 
-    secrets = load_secrets_from_vault(secrets_info, config)
+    secrets = load_secrets(secrets_info, config)
     assert secrets["k8s"]["a-secret"] == "bar"
 
 
+@patch.dict(os.environ, {"KUBE_API_URL": "http://1.2.3.4"})
 def test_override_load_environmen_with_var():
-    os.environ["KUBE_API_URL"] = "http://1.2.3.4"
     secrets = load_secrets({
         "kubernetes": {
             "api_server_url": {
@@ -262,12 +283,12 @@ def test_override_load_environmen_with_var():
                 "key": "KUBE_API_URL"
             }
         }
-    }, config.EmptyConfig, 
-    {
-        "kubernetes": {
-            "api_server_url": "http://elsewhere"
-        }
-    })
+    }, config.EmptyConfig,
+        {
+            "kubernetes": {
+                "api_server_url": "http://elsewhere"
+            }
+        })
     assert secrets["kubernetes"]["api_server_url"] == "http://elsewhere"
 
 
@@ -277,9 +298,133 @@ def test_should_override_load_inline_with_var():
             "api_server_url": "http://1.2.3.4"
         }
     }, config.EmptyConfig,
-    {
-        "kubernetes": {
-            "api_server_url": "http://elsewhere"
-        }
-    })
+        {
+            "kubernetes": {
+                "api_server_url": "http://elsewhere"
+            }
+        })
     assert secrets["kubernetes"]["api_server_url"] == "http://elsewhere"
+
+
+@patch('chaoslib.secret.hvac')
+def test_vault_add_subkeys(hvac):
+    config = {
+        'vault_addr': 'http://someaddr.com',
+        'vault_token': 'not_awesome_token',
+        'vault_kv_version': '2'
+    }
+
+    vault_secret_payload = {
+        "data": {
+            "data": {
+                "foo": "bar",
+                "baz": "hello"
+            },
+            "metadata": {
+                "auth": None,
+                "lease_duration": 2764800,
+                "lease_id": "",
+                "renewable": False
+            }
+        }
+    }
+
+    fake_client = MagicMock()
+    hvac.Client.return_value = fake_client
+    fake_client.secrets.kv.v2.read_secret_version.return_value = vault_secret_payload
+
+    secrets = load_secrets({
+        "myapp": {
+            "token": {
+                "type": "vault",
+                "path": "secrets/something"
+            }
+        }
+    }, config)
+    assert secrets["myapp"]["token"]["foo"] == "bar"
+    assert secrets["myapp"]["token"]["baz"] == "hello"
+
+@patch('chaoslib.secret.hvac')
+def test_vault_replace_entire_declare(hvac):
+    config = {
+        'vault_addr': 'http://someaddr.com',
+        'vault_token': 'not_awesome_token',
+        'vault_kv_version': '2'
+    }
+
+    vault_secret_payload = {
+        "data": {
+            "data": {
+                "foo": "bar",
+                "baz": "hello"
+            },
+            "metadata": {
+                "auth": None,
+                "lease_duration": 2764800,
+                "lease_id": "",
+                "renewable": False
+            }
+        }
+    }
+
+    fake_client = MagicMock()
+    hvac.Client.return_value = fake_client
+    fake_client.secrets.kv.v2.read_secret_version.return_value = vault_secret_payload
+
+    secrets = load_secrets({
+        "myapp": {
+            "token": {
+                "type": "vault",
+                "path": "secrets/something",
+                "key": "foo"
+            }
+        }
+    }, config)
+    assert secrets["myapp"]["token"] == "bar"
+
+@patch('chaoslib.secret.hvac')
+def test_key_not_in_vault(hvac):
+    pass
+
+@patch('chaoslib.secret.hvac')
+def test_no_vault_entry(hvac):
+    pass
+
+@patch('chaoslib.secret.hvac')
+def test_override_vault_with_vars(hvac):
+    config = {
+        'vault_addr': 'http://someaddr.com',
+        'vault_token': 'not_awesome_token',
+        'vault_kv_version': '2'
+    }
+
+    vault_secret_payload = {
+        "data": {
+            "data": {
+                "foo": "bar",
+                "baz": "hello"
+            },
+            "metadata": {
+                "auth": None,
+                "lease_duration": 2764800,
+                "lease_id": "",
+                "renewable": False
+            }
+        }
+    }
+
+    fake_client = MagicMock()
+    hvac.Client.return_value = fake_client
+    fake_client.secrets.kv.v2.read_secret_version.return_value = vault_secret_payload
+
+    secrets = load_secrets({
+        "myapp": {
+            "token": {
+                "type": "vault",
+                "path": "secrets/something",
+                "key": "foo"
+            }
+        }
+    }, config,
+        {"myapp": {"token": "baz"}})
+    assert secrets["myapp"]["token"] == "baz"
