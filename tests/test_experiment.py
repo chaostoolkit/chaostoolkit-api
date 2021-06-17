@@ -306,9 +306,37 @@ def test_dry_run_should_not_pause_after():
     assert experiment_run_time < pause_after_duration
 
 
+def test_actionless_run_should_not_pause_after():
+    experiment = experiments.ExperimentWithLongPauseAction.copy()
+    experiment["actionless"] = True
+
+    start = datetime.utcnow()
+    run_experiment(experiment)
+    end = datetime.utcnow()
+
+    experiment_run_time = int((end - start).total_seconds())
+    pause_after_duration = int(experiment["method"][1]["pauses"]["after"])
+
+    assert experiment_run_time < pause_after_duration
+
+
 def test_dry_run_should_not_pause_before():
     experiment = experiments.ExperimentWithLongPauseBefore.copy()
     experiment["dry"] = True
+
+    start = datetime.utcnow()
+    run_experiment(experiment)
+    end = datetime.utcnow()
+
+    experiment_run_time = int((end - start).total_seconds())
+    pause_before_duration = int(experiment["method"][1]["pauses"]["before"])
+
+    assert experiment_run_time < pause_before_duration
+
+
+def test_actionless_run_should_not_pause_before():
+    experiment = experiments.ExperimentWithLongPauseAction.copy()
+    experiment["actionless"] = True
 
     start = datetime.utcnow()
     run_experiment(experiment)
@@ -446,3 +474,11 @@ def test_rollback_never_strategy_does_not_run_on_interrupted_experiment_in_metho
     journal = run_experiment(experiment, settings)
     assert journal["status"] == "interrupted"
     assert len(journal["rollbacks"]) == 0
+
+
+def test_can_run_experiment_in_actionless_mode():
+    experiment = experiments.ExperimentWithLongPauseAction.copy()
+    experiment["actionless"] = True
+
+    journal = run_experiment(experiment)
+    assert isinstance(journal, dict)
