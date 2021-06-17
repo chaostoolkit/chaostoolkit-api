@@ -101,7 +101,7 @@ def ensure_activity_is_valid(activity: Activity):  # noqa: C901
 
 def run_activities(experiment: Experiment, configuration: Configuration,
                    secrets: Secrets, pool: ThreadPoolExecutor,
-                   dry: bool = False) -> Iterator[Run]:
+                   dry: bool = False, actionless: bool = False) -> Iterator[Run]:
     """
     Internal generator that iterates over all activities and execute them.
     Yields either the result of the run or a :class:`concurrent.futures.Future`
@@ -117,19 +117,22 @@ def run_activities(experiment: Experiment, configuration: Configuration,
             logger.debug("activity will run in the background")
             yield pool.submit(
                 execute_activity, experiment=experiment, activity=activity,
-                configuration=configuration, secrets=secrets, dry=dry)
+                configuration=configuration, secrets=secrets, dry=dry
+                ,actionless=actionless)
         else:
             yield execute_activity(
                 experiment=experiment, activity=activity,
-                configuration=configuration, secrets=secrets, dry=dry)
+                configuration=configuration, secrets=secrets,dry=dry,
+                actionless=actionless)
 
 
 ###############################################################################
 # Internal functions
 ###############################################################################
-def execute_activity(experiment: Experiment, activity: Activity,
+def execute_activity(experiment: Experiment,activity: Activity,
                      configuration: Configuration,
-                     secrets: Secrets, dry: bool = False) -> Run:
+                     secrets: Secrets, dry: bool = False,
+                     actionless: bool = False) -> Run:
     """
     Low-level wrapper around the actual activity provider call to collect
     some meta data (like duration, start/end time, exceptions...) during
@@ -145,13 +148,19 @@ def execute_activity(experiment: Experiment, activity: Activity,
     with controls(level="activity", experiment=experiment, context=activity,
                   configuration=configuration, secrets=secrets) as control:
         dry = activity.get("dry", dry)
+        actionless = activity.get("actionless", actionless)
         pauses = activity.get("pauses", {})
         pause_before = pauses.get("before")
+        action_activity = False
+        if actionless:
+            activity_type = activity["type"]
+            action_activity = activity_type == "action"
+
         if pause_before:
             logger.info("Pausing before next activity for {d}s...".format(
                 d=pause_before))
-            # only pause when not in dry-mode
-            if not dry:
+            # only pause when not in dry-mode or actionless
+            if not dry and not action_activity:
                 time.sleep(pause_before)
 
         if activity.get("background"):
@@ -171,8 +180,8 @@ def execute_activity(experiment: Experiment, activity: Activity,
         result = None
         interrupted = False
         try:
-            # only run the activity itself when not in dry-mode
-            if not dry:
+            # only run the activity itself when not in dry-mode or in actionless
+            if not dry and not action_activity:
                 result = run_activity(activity, configuration, secrets)
             run["output"] = result
             run["status"] = "succeeded"
@@ -197,8 +206,8 @@ def execute_activity(experiment: Experiment, activity: Activity,
             if pause_after and not interrupted:
                 logger.info("Pausing after activity for {d}s...".format(
                     d=pause_after))
-                # only pause when not in dry-mode
-                if not dry:
+                # only pause when not in dry-mode or actionless
+                if not dry and not action_activity:
                     time.sleep(pause_after)
 
         control.with_state(run)

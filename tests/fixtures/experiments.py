@@ -3,7 +3,8 @@ from copy import deepcopy
 import os
 
 from fixtures.actions import DoNothingAction, EchoAction, FailAction, \
-    InterruptAction
+    InterruptAction,\
+    PythonModuleActionWithLongAction
 from fixtures.probes import BackgroundPythonModuleProbe, MissingFuncArgProbe, \
     PythonModuleProbe, PythonModuleProbeWithBoolTolerance, \
     PythonModuleProbeWithExternalTolerance, PythonModuleProbeWithLongPause, \
@@ -110,11 +111,26 @@ ExperimentWithLongPause = {
         "title": "hello"
     },
     "method": [
-        PythonModuleProbeWithLongPause, 
+        PythonModuleProbeWithLongPause,
         BackgroundPythonModuleProbeWithLongPause
     ],
     "rollbacks": [
         BackgroundPythonModuleProbe
+    ]
+}
+
+ExperimentWithLongPauseAction = {
+    "title": "do cats live in the Internet?",
+    "description": "an experiment of importance",
+    "steady-state-hypothesis": {
+        "title": "hello"
+    },
+    "method": [
+        PythonModuleProbeWithLongPause,
+        PythonModuleActionWithLongAction,
+    ],
+    "rollbacks": [
+        PythonModuleActionWithLongAction
     ]
 }
 
